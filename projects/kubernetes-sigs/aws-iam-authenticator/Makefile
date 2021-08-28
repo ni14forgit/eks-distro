@@ -16,7 +16,15 @@ AWS_REGION?=us-west-2
 MAKE_ROOT=$(shell cd "$(shell dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BASE_REPO?=public.ecr.aws/eks-distro-build-tooling
 BASE_IMAGE_NAME?=eks-distro-base
-BASE_TAG?=$(shell cat $(MAKE_ROOT)/../../../EKS_DISTRO_BASE_TAG_FILE)
+
+DOCKERFILE=Dockerfile
+ifeq ($(RELEASE_VARIANT), minimal)
+	DOCKERFILE=Dockerfile.minimal
+	BASE_IMAGE_NAME=eks-distro-minimal-base
+endif
+
+BASE_TAG_FILE?=$(MAKE_ROOT)/../../../$(shell echo $(BASE_IMAGE_NAME) | tr '[:lower:]' '[:upper:]' | tr '-' '_')_TAG_FILE
+BASE_TAG?=$(shell cat $(BASE_TAG_FILE))
 BASE_IMAGE?=$(BASE_REPO)/$(BASE_IMAGE_NAME):$(BASE_TAG)
 
 IMAGE_REPO?=$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
@@ -24,6 +32,7 @@ IMAGE_NAME?=$(COMPONENT)
 IMAGE_TAG?=$(GIT_TAG)-eks-${RELEASE_BRANCH}-${RELEASE}
 IMAGE?=$(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_TAG)
 
+BUILDER_IMAGE=$(BASE_REPO)/eks-distro-base:$(shell cat $(MAKE_ROOT)/../../../EKS_DISTRO_BASE_TAG_FILE)
 
 .PHONY: binaries
 binaries:
@@ -36,7 +45,9 @@ local-images: binaries
 		--frontend dockerfile.v0 \
 		--opt platform=linux/amd64 \
 		--opt build-arg:BASE_IMAGE=$(BASE_IMAGE) \
+		--opt build-arg:BUILDER_IMAGE=$(BUILDER_IMAGE) \
 		--opt build-arg:RELEASE_BRANCH=$(RELEASE_BRANCH) \
+		--opt filename=$(DOCKERFILE) \
 		--local dockerfile=./docker/linux \
 		--local context=. \
 		--output type=oci,oci-mediatypes=true,name=$(IMAGE),dest=/tmp/aws-iam-authenticator.tar
@@ -48,7 +59,9 @@ images: binaries
 		--frontend dockerfile.v0 \
 		--opt platform=linux/amd64,linux/arm64 \
 		--opt build-arg:BASE_IMAGE=$(BASE_IMAGE) \
+		--opt build-arg:BUILDER_IMAGE=$(BUILDER_IMAGE) \
 		--opt build-arg:RELEASE_BRANCH=$(RELEASE_BRANCH) \
+		--opt filename=$(DOCKERFILE) \
 		--local dockerfile=./docker/linux \
 		--local context=. \
 		--output type=image,oci-mediatypes=true,name=$(IMAGE),push=true
@@ -58,10 +71,11 @@ docker:
 	docker build \
 		-t $(IMAGE) \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+		--build-arg BASE_IMAGE=$(BUILDER_IMAGE) \	
 		--build-arg RELEASE_BRANCH=$(RELEASE_BRANCH) \
 		--build-arg TARGETARCH=amd64 \
 		--build-arg TARGETOS=linux \
-		-f ./docker/linux/Dockerfile .
+		-f ./docker/linux/$(DOCKERFILE) .
 
 .PHONY: docker-push
 docker-push:

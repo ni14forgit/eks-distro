@@ -23,11 +23,12 @@ readonly KUBE_LINUX_IMAGE_PLATFORMS=(
 function build::images::release_image_tar(){
     local -r release_branch="$1"
     local -r base_image="$2"
-    local -r repository="$3"
-    local -r component="$4"
-    local -r image_tag="$5"
-    local -r context_dir="$6"
-    local -r skip_arm="$7"
+    local -r dockerfile="$3"
+    local -r repository="$4"
+    local -r component="$5"
+    local -r image_tag="$6"
+    local -r context_dir="$7"
+    local -r skip_arm="$8"
     
     for platform in "${KUBE_LINUX_IMAGE_PLATFORMS[@]}"; do
         if [ "$platform" == "arm64" ] && [ $skip_arm == true ]; then
@@ -43,6 +44,7 @@ function build::images::release_image_tar(){
             --opt platform=linux/${platform} \
             --opt build-arg:BASE_IMAGE=${base_image} \
             --opt build-arg:RELEASE_BRANCH=${release_branch} \
+            --opt filename=${dockerfile} \
             --local dockerfile=./docker/linux \
             --local context=${context_dir} \
             --output type=oci,oci-mediatypes=true,name=${image},dest=${image_dir}/coredns.tar
@@ -57,10 +59,11 @@ function build::images::release_image_tar(){
 function build::images::push(){
     local -r release_branch="$1"
     local -r base_image="$2"
-    local -r repository="$3"
-    local -r component="$4"
-    local -r image_tag="$5"
-    local -r context_dir="$6"
+    local -r dockerfile="$3"
+    local -r repository="$4"
+    local -r component="$5"
+    local -r image_tag="$6"
+    local -r context_dir="$7"
 
     image=${repository}/${component}:${image_tag}
     buildctl \
@@ -69,6 +72,7 @@ function build::images::push(){
         --opt platform=linux/amd64,linux/arm64 \
         --opt build-arg:BASE_IMAGE=${base_image} \
         --opt build-arg:RELEASE_BRANCH=${release_branch} \
+        --opt filename=${dockerfile} \
         --local dockerfile=./docker/linux \
         --local context=${context_dir} \
         --output type=image,oci-mediatypes=true,name=${image},push=true

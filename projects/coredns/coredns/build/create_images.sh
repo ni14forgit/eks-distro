@@ -21,11 +21,12 @@ set -o pipefail
 
 RELEASE_BRANCH="$1"
 BASE_IMAGE="$2"
-REPOSITORY_BASE="$3"
-COMPONENT="$4"
-IMAGE_TAG="$5"
-PUSH="$6"
-SKIP_ARM=${7-false}
+DOCKERFILE="$3"
+REPOSITORY_BASE="$4"
+COMPONENT="$5"
+IMAGE_TAG="$6"
+PUSH="$7"
+SKIP_ARM=${8-false}
 
 MAKE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
@@ -41,8 +42,8 @@ fi
 
 if [ "$PUSH" != "true" ]; then
     echo "Placing images under in $BIN_DIR"
-    build::images::release_image_tar $RELEASE_BRANCH $BASE_IMAGE $REPOSITORY_BASE $COMPONENT $IMAGE_TAG $MAKE_ROOT $SKIP_ARM
+    build::images::release_image_tar $RELEASE_BRANCH $BASE_IMAGE $DOCKERFILE $REPOSITORY_BASE $COMPONENT $IMAGE_TAG $MAKE_ROOT $SKIP_ARM
 else
-    build::images::push $RELEASE_BRANCH $BASE_IMAGE $REPOSITORY_BASE $COMPONENT $IMAGE_TAG $MAKE_ROOT
+    build::images::push $RELEASE_BRANCH $BASE_IMAGE $DOCKERFILE $REPOSITORY_BASE $COMPONENT $IMAGE_TAG $MAKE_ROOT
 fi
 

@@ -141,12 +141,13 @@ function build::images::docker::push(){
 
 # Create platform-specific OCI image tars
 function build::images::pause_tar(){
-    local -r go_runner_image="$1"
-    local -r version="$2"
-    local -r image_tag="$3"
-    local -r context_dir="$4"
-    local -r bin_dir="$5"
-    local -r skip_arm="$6"
+    local -r builder_image="$1"
+    local -r base_image="$2"
+    local -r version="$3"
+    local -r image_tag="$4"
+    local -r context_dir="$5"
+    local -r bin_dir="$6"
+    local -r skip_arm="$7"
 
     for platform in "${KUBE_LINUX_IMAGE_PLATFORMS[@]}"; do
         if [ "$platform" == "arm64" ] && [ $skip_arm == true ]; then
@@ -158,7 +159,8 @@ function build::images::pause_tar(){
             --opt platform=linux/${platform} \
             --local dockerfile=./docker/pause/ \
             --local context=${context_dir} \
-            --opt build-arg:BASE_IMAGE=${go_runner_image} \
+            --opt build-arg:BUILDER_IMAGE=${builder_image} \
+            --opt build-arg:BASE_IMAGE=${base_image} \
             --opt build-arg:VERSION=${version} \
             --output type=oci,oci-mediatypes=true,\"name=${image_tag}\",dest=${bin_dir}/linux/${platform}/pause.tar
     done
@@ -166,10 +168,11 @@ function build::images::pause_tar(){
 
 # Create platform-specific OCI image tars
 function build::images::pause_push(){
-    local -r go_runner_image="$1"
-    local -r version="$2"
-    local -r image_tag="$3"
-    local -r context_dir="$4"
+    local -r builder_image="$1"
+    local -r base_image="$2"
+    local -r version="$3"
+    local -r image_tag="$4"
+    local -r context_dir="$5"
 
     buildctl \
         build \
@@ -177,7 +180,8 @@ function build::images::pause_push(){
         --opt platform=linux/amd64,linux/arm64 \
         --local dockerfile=./docker/pause/ \
         --local context=${context_dir} \
-        --opt build-arg:BASE_IMAGE=${go_runner_image} \
+        --opt build-arg:BUILDER_IMAGE=${builder_image} \
+        --opt build-arg:BASE_IMAGE=${base_image} \
         --opt build-arg:VERSION=${version} \
         --output type=image,oci-mediatypes=true,\"name=${image_tag}\",push=true
 }

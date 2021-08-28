@@ -13,17 +13,14 @@
 # limitations under the License.
 
 ARG BASE_IMAGE
-ARG BUILDER_IMAGE
-FROM ${BUILDER_IMAGE}
+FROM $BASE_IMAGE
 
-ARG VERSION
+ARG TARGETARCH
+ARG TARGETOS
+ARG RELEASE_BRANCH
 
-RUN yum update -y
-RUN yum install -y gcc glibc-static
-# Use as small a context as possible so Docker doesn't read all of _output
-COPY pause.c /pause.c
-RUN gcc -Os -Wall -Werror -static -DVERSION=${VERSION} -o /pause /pause.c
-
-FROM ${BASE_IMAGE}
-COPY --from=0 /pause /pause
-ENTRYPOINT ["/pause"]
+COPY _output/LICENSES /LICENSES
+COPY $RELEASE_BRANCH/ATTRIBUTION.txt /ATTRIBUTION.txt
+COPY _output/bin/metrics-server/$TARGETOS-$TARGETARCH/metrics-server /metrics-server
+USER 65534
+ENTRYPOINT ["/metrics-server"]

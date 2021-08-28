@@ -7,12 +7,23 @@ GIT_TAG?=$(shell cat ./$(RELEASE_BRANCH)/GIT_TAG)
 GOLANG_VERSION?=$(shell cat ./$(RELEASE_BRANCH)/GOLANG_VERSION)
 PAUSE_TAG?=$(shell cat $(wildcard ./$(RELEASE_BRANCH)/PAUSE_*TAG))
 
+MAKE_ROOT=$(shell cd "$(shell dirname "${BASH_SOURCE[0]}")" && pwd -P)
+
 REPO=kubernetes
 COMPONENT=kubernetes/$(REPO)
 CLONE_URL=https://github.com/$(COMPONENT).git
 
 AWS_ACCOUNT_ID?=$(shell aws sts get-caller-identity --query Account --output text)
 AWS_REGION?=us-west-2
+
+BASE_REPO?=public.ecr.aws/eks-distro-build-tooling
+
+PAUSE_BASE_IMAGE=scratch
+ifeq ($(RELEASE_VARIANT), minimal)
+	PAUSE_BASE_IMAGE_NAME?=eks-distro-minimal-base-nonroot
+	PAUSE_BASE_IMAGE_TAG_FILE?=$(MAKE_ROOT)/../../../$(shell echo $(PAUSE_BASE_IMAGE_NAME) | tr '[:lower:]' '[:upper:]' | tr '-' '_')_TAG_FILE
+	PAUSE_BASE_IMAGE=$(BASE_REPO)/$(PAUSE_BASE_IMAGE_NAME):$(shell cat $(PAUSE_BASE_IMAGE_TAG_FILE))
+endif
 
 IMAGE_REPO?=$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 IMAGE_REPO_PREFIX=kubernetes
@@ -33,6 +44,7 @@ PAUSE_IMAGE_TAG?=$(IMAGE_TAG)
 PAUSE_IMAGE?=$(IMAGE_REPO)/$(IMAGE_REPO_PREFIX)/$(PAUSE_IMAGE_NAME):$(PAUSE_IMAGE_TAG)
 PAUSE_TAGS=$(foreach tag, $(PAUSE_TAG), $(IMAGE_REPO)/$(IMAGE_REPO_PREFIX)/$(PAUSE_IMAGE_NAME):$(tag))
 PAUSE_IMAGE_3_X=$(shell echo $(PAUSE_TAGS) | sed "s/ \+/,/g")
+PAUSE_BUILDER_IMAGE=$(BASE_REPO)/eks-distro-base:$(shell cat $(MAKE_ROOT)/../../../EKS_DISTRO_BASE_TAG_FILE)
 
 .PHONY: update-version
 update-version: binaries
@@ -61,18 +73,18 @@ local-images:
 	build/create_images.sh $(RELEASE_BRANCH) \
 		"$(shell build/determine_presubmit_base_image.sh $(GO_RUNNER_IMAGE))" \
 		"$(shell build/determine_presubmit_base_image.sh $(KUBE_PROXY_BASE_IMAGE))" \
-		$(IMAGE_REPO) $(IMAGE_REPO_PREFIX) $(IMAGE_TAG) "$(PAUSE_IMAGE),$(PAUSE_IMAGE_3_X)" false true
+		$(IMAGE_REPO) $(IMAGE_REPO_PREFIX) $(IMAGE_TAG) "$(PAUSE_IMAGE),$(PAUSE_IMAGE_3_X)" $(PAUSE_BUILDER_IMAGE) $(PAUSE_BASE_IMAGE) false true
 
 .PHONY: images
 images:
 	# we publish oci tarballs in release mode in addition to pushing images for use by kops and other installer tools
 	build/create_images.sh \
 		$(RELEASE_BRANCH) $(GO_RUNNER_IMAGE) $(KUBE_PROXY_BASE_IMAGE) \
-		$(IMAGE_REPO) $(IMAGE_REPO_PREFIX) $(IMAGE_TAG) "$(PAUSE_IMAGE),$(PAUSE_IMAGE_3_X)" false
+		$(IMAGE_REPO) $(IMAGE_REPO_PREFIX) $(IMAGE_TAG) "$(PAUSE_IMAGE),$(PAUSE_IMAGE_3_X)" $(PAUSE_BUILDER_IMAGE) $(PAUSE_BASE_IMAGE) false
 	
 	build/create_images.sh \
 		$(RELEASE_BRANCH) $(GO_RUNNER_IMAGE) $(KUBE_PROXY_BASE_IMAGE) \
-		$(IMAGE_REPO) $(IMAGE_REPO_PREFIX) $(IMAGE_TAG) "$(PAUSE_IMAGE),$(PAUSE_IMAGE_3_X)" true
+		$(IMAGE_REPO) $(IMAGE_REPO_PREFIX) $(IMAGE_TAG) "$(PAUSE_IMAGE),$(PAUSE_IMAGE_3_X)" $(PAUSE_BUILDER_IMAGE) $(PAUSE_BASE_IMAGE) true
 		
 .PHONY: docker
 docker: binaries pause

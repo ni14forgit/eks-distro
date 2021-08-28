@@ -10,13 +10,19 @@ REPO=external-attacher
 COMPONENT=kubernetes-csi/$(REPO)
 CLONE_URL=https://github.com/$(COMPONENT).git
 
+BASE_IMAGE_NAME?=eks-distro-base
+ifeq ($(RELEASE_VARIANT), minimal)
+	BASE_IMAGE_NAME=eks-distro-minimal-base
+endif
+
 AWS_ACCOUNT_ID?=$(shell aws sts get-caller-identity --query Account --output text)
 AWS_REGION?=us-west-2
 
 MAKE_ROOT=$(shell cd "$(shell dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BASE_REPO?=public.ecr.aws/eks-distro-build-tooling
-BASE_IMAGE_NAME?=eks-distro-base
-BASE_TAG?=$(shell cat $(MAKE_ROOT)/../../../EKS_DISTRO_BASE_TAG_FILE)
+
+BASE_TAG_FILE?=$(MAKE_ROOT)/../../../$(shell echo $(BASE_IMAGE_NAME) | tr '[:lower:]' '[:upper:]' | tr '-' '_')_TAG_FILE
+BASE_TAG?=$(shell cat $(BASE_TAG_FILE))
 BASE_IMAGE?=$(BASE_REPO)/$(BASE_IMAGE_NAME):$(BASE_TAG)
 
 IMAGE_REPO?=$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com

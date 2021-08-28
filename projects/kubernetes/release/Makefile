@@ -15,9 +15,23 @@ AWS_ACCOUNT_ID?=$(shell aws sts get-caller-identity --query Account --output tex
 
 MAKE_ROOT=$(shell cd "$(shell dirname "${BASH_SOURCE[0]}")" && pwd -P)
 BASE_REPO?=public.ecr.aws/eks-distro-build-tooling
-BASE_IMAGE_NAME?=eks-distro-base
-BASE_TAG?=$(shell cat $(MAKE_ROOT)/../../../EKS_DISTRO_BASE_TAG_FILE)
-BASE_IMAGE?=$(BASE_REPO)/$(BASE_IMAGE_NAME):$(BASE_TAG)
+
+KUBE_PROXY_EKS_DISTRO_BASE_IMAGE_NAME?=eks-distro-base
+GO_RUNNER_BASE_IMAGE_NAME?=eks-distro-base
+KUBE_PROXY_DOCKERFILE=Dockerfile
+ifeq ($(RELEASE_VARIANT), minimal)
+	KUBE_PROXY_EKS_DISTRO_BASE_IMAGE_NAME=eks-distro-minimal-base-iptables
+	GO_RUNNER_BASE_IMAGE_NAME=eks-distro-minimal-base
+	KUBE_PROXY_DOCKERFILE=Dockerfile.minimal
+endif
+
+KUBE_PROXY_EKS_DISTRO_TAG_FILE?=$(MAKE_ROOT)/../../../$(shell echo $(KUBE_PROXY_EKS_DISTRO_BASE_IMAGE_NAME) | tr '[:lower:]' '[:upper:]' | tr '-' '_')_TAG_FILE
+KUBE_PROXY_EKS_DISTRO_BASE_TAG?=$(shell cat $(KUBE_PROXY_EKS_DISTRO_TAG_FILE))
+KUBE_PROXY_EKS_DISTRO_BASE_IMAGE?=$(BASE_REPO)/$(KUBE_PROXY_EKS_DISTRO_BASE_IMAGE_NAME):$(KUBE_PROXY_EKS_DISTRO_BASE_TAG)
+
+GO_RUNNER_BASE_TAG_FILE?=$(MAKE_ROOT)/../../../$(shell echo $(GO_RUNNER_BASE_IMAGE_NAME) | tr '[:lower:]' '[:upper:]' | tr '-' '_')_TAG_FILE
+GO_RUNNER_BASE_TAG?=$(shell cat $(GO_RUNNER_BASE_TAG_FILE))
+GO_RUNNER_BASE_IMAGE?=$(BASE_REPO)/$(GO_RUNNER_BASE_IMAGE_NAME):$(GO_RUNNER_BASE_TAG)
 
 IMAGE_REPO?=$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 GO_RUNNER_IMAGE_NAME?=kubernetes/go-runner
@@ -41,7 +55,7 @@ local-images: binaries
 		build \
 		--frontend dockerfile.v0 \
 		--opt platform=linux/amd64,linux/arm64  \
-		--opt build-arg:BASE_IMAGE=$(BASE_IMAGE) \
+		--opt build-arg:BASE_IMAGE=$(GO_RUNNER_BASE_IMAGE) \
 		--opt build-arg:RELEASE_BRANCH=$(RELEASE_BRANCH) \
 		--local dockerfile=./docker/go-runner/ \
 		--local context=. \
@@ -50,9 +64,10 @@ local-images: binaries
 		build \
 		--frontend dockerfile.v0 \
 		--opt platform=linux/amd64 \
-		--opt build-arg:BASE_IMAGE=$(BASE_IMAGE) \
+		--opt build-arg:BASE_IMAGE=$(KUBE_PROXY_EKS_DISTRO_BASE_IMAGE) \
 		--opt build-arg:RELEASE_BRANCH=$(RELEASE_BRANCH) \
 		--local dockerfile=./docker/kube-proxy-base/ \
+		--opt filename=$(KUBE_PROXY_DOCKERFILE) \
 		--local context=. \
 		--output type=oci,oci-mediatypes=true,name=$(KUBE_PROXY_BASE_IMAGE),dest=/tmp/kube-proxy-base.tar
 
@@ -63,7 +78,7 @@ images: binaries
 		build \
 		--frontend dockerfile.v0 \
 		--opt platform=linux/amd64,linux/arm64  \
-		--opt build-arg:BASE_IMAGE=$(BASE_IMAGE) \
+		--opt build-arg:BASE_IMAGE=$(GO_RUNNER_BASE_IMAGE) \
 		--opt build-arg:RELEASE_BRANCH=$(RELEASE_BRANCH) \
 		--local dockerfile=./docker/go-runner/ \
 		--local context=. \
@@ -72,9 +87,10 @@ images: binaries
 		build \
 		--frontend dockerfile.v0 \
 		--opt platform=linux/amd64,linux/arm64  \
-		--opt build-arg:BASE_IMAGE=$(BASE_IMAGE) \
+		--opt build-arg:BASE_IMAGE=$(KUBE_PROXY_EKS_DISTRO_BASE_IMAGE) \
 		--opt build-arg:RELEASE_BRANCH=$(RELEASE_BRANCH) \
 		--local dockerfile=./docker/kube-proxy-base/ \
+		--opt filename=$(KUBE_PROXY_DOCKERFILE) \
 		--local context=. \
 		--output type=image,oci-mediatypes=true,name=$(KUBE_PROXY_BASE_IMAGE),push=true
 
@@ -83,18 +99,18 @@ docker: binaries
 	cp release/images/build/debian-iptables/buster/iptables-wrapper _output/
 	docker build \
 		-t $(GO_RUNNER_IMAGE) \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+		--build-arg BASE_IMAGE=$(GO_RUNNER_BASE_IMAGE) \
 		--build-arg RELEASE_BRANCH=$(RELEASE_BRANCH) \
 		--build-arg TARGETARCH=amd64 \
 		--build-arg TARGETOS=linux \
 		-f ./docker/go-runner/Dockerfile .
 	docker build \
 		-t $(KUBE_PROXY_BASE_IMAGE) \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+		--build-arg BASE_IMAGE=$(KUBE_PROXY_EKS_DISTRO_BASE_IMAGE) \
 		--build-arg RELEASE_BRANCH=$(RELEASE_BRANCH) \
 		--build-arg TARGETARCH=amd64 \
 		--build-arg TARGETOS=linux \
-		-f ./docker/kube-proxy-base/Dockerfile .
+		-f ./docker/kube-proxy-base/$(KUBE_PROXY_DOCKERFILE) .
 
 .PHONY: docker-push
 docker-push:
