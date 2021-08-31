@@ -44,5 +44,12 @@ DEFAULT_KOPS_ZONE_NAME="prod-build-pdx.kops-ci.model-rocket.aws.dev"
 KOPS_ZONE_NAME=${KOPS_ZONE_NAME:-"${DEFAULT_KOPS_ZONE_NAME}"}
 export NODE_ARCHITECTURE=${NODE_ARCHITECTURE:-amd64}
 export RELEASE_VARIANT=${RELEASE_VARIANT:-std}
-export KOPS_CLUSTER_NAME=${RELEASE_BRANCH}-${NODE_ARCHITECTURE}-${RELEASE_VARIANT}-$(git rev-parse --short HEAD).${KOPS_ZONE_NAME}
+# minimal is too long and ends up making the dns name too long for kops
+# this additional item in the dns will go away when we switch to minimal by default in 1.22
+if [[ $RELEASE_VARIANT = "std" ]]; then
+    export RELEASE_VARIANT_SHORT="s"
+else
+    export RELEASE_VARIANT_SHORT="m"
+fi
+export KOPS_CLUSTER_NAME=${RELEASE_BRANCH}-${NODE_ARCHITECTURE}-${RELEASE_VARIANT_SHORT}-$(git rev-parse --short HEAD).${KOPS_ZONE_NAME}
 ${BASEDIR}/run_all.sh
